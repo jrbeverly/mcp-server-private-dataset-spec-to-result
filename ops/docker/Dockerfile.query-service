@@ -1,0 +1,40 @@
+# ==============================================================================
+# Query Service — Production Dockerfile
+# ==============================================================================
+# Multi-stage build: SDK for compilation, ASP.NET runtime for execution.
+# The query service hosts the analytical API and serves HTTP on port 5000.
+# ==============================================================================
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Restore dependencies in a separate layer for caching
+COPY contracts/ServiceContract/src/ServiceContract.csproj contracts/ServiceContract/src/
+COPY contracts/ServiceConfiguration/src/ServiceConfiguration.csproj contracts/ServiceConfiguration/src/
+COPY service/QueryService/src/QueryService.Domain/QueryService.Domain.csproj service/QueryService/src/QueryService.Domain/
+COPY service/QueryService/src/QueryService.Infrastructure/QueryService.Infrastructure.csproj service/QueryService/src/QueryService.Infrastructure/
+COPY service/QueryService/src/QueryService.Api/QueryService.Api.csproj service/QueryService/src/QueryService.Api/
+COPY ingestion/IngestionService/src/IngestionService.csproj ingestion/IngestionService/src/
+
+RUN dotnet restore service/QueryService/src/QueryService.Api/QueryService.Api.csproj
+
+# Full source copy and publish
+COPY . .
+RUN dotnet publish service/QueryService/src/QueryService.Api/QueryService.Api.csproj \
+    -c Release \
+    -o /app \
+    --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+
+# Non-root user
+RUN adduser --disabled-password --gecos "" appuser
+USER appuser
+
+COPY --from=build /app .
+
+ENV ASPNETCORE_URLS=http://+:5000
+EXPOSE 5000
+
+ENTRYPOINT ["dotnet", "QueryService.Api.dll"]

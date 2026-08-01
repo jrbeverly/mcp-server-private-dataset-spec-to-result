@@ -1,0 +1,38 @@
+# ==============================================================================
+# MCP Adapter — Production Dockerfile
+# ==============================================================================
+# Multi-stage build: SDK for compilation, ASP.NET runtime for execution.
+# The MCP adapter is the ChatGPT-facing transport layer and serves on port 8080.
+# It calls the query service via HTTP — no direct database access.
+# ==============================================================================
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+# Restore dependencies in a separate layer for caching
+COPY contracts/ServiceContract/src/ServiceContract.csproj contracts/ServiceContract/src/
+COPY contracts/ServiceConfiguration/src/ServiceConfiguration.csproj contracts/ServiceConfiguration/src/
+COPY mcp/McpAdapter/src/McpAdapter.csproj mcp/McpAdapter/src/
+
+RUN dotnet restore mcp/McpAdapter/src/McpAdapter.csproj
+
+# Full source copy and publish
+COPY . .
+RUN dotnet publish mcp/McpAdapter/src/McpAdapter.csproj \
+    -c Release \
+    -o /app \
+    --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+
+# Non-root user
+RUN adduser --disabled-password --gecos "" appuser
+USER appuser
+
+COPY --from=build /app .
+
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+
+ENTRYPOINT ["dotnet", "McpAdapter.dll"]

@@ -1,0 +1,69 @@
+# ==============================================================================
+# Local Deployment — Docker Compose
+# ==============================================================================
+# Stands up the full service stack for local development and testing:
+#   - PostgreSQL serving store
+#   - Query service (analytical API)
+#   - MCP adapter (ChatGPT-facing endpoint)
+#
+# The processing and ingestion services run as one-shot containers.
+# ==============================================================================
+
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: corpus-postgres
+    environment:
+      POSTGRES_DB: corpus
+      POSTGRES_USER: corpus_admin
+      POSTGRES_PASSWORD: corpus_local
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corpus_admin -d corpus"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  query-service:
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.query-service
+    container_name: corpus-query-service
+    environment:
+      CORPUS_DEPLOYMENT_NAME: local-dev
+      CORPUS_ID: local-corpus
+      AUTH_TOKEN: dev-token
+      AUTH_HEADER_NAME: X-Api-Token
+      STORAGE_POSTGRES_CONNECTION_STRING: Host=postgres;Database=corpus;Username=corpus_admin;Password=corpus_local
+      STORAGE_S3_BUCKET_NAME: local-artifacts
+      ARTIFACT_ROOT_PATH: /tmp/processing-artifacts
+      DATASET_ALLOW_VERSION_PINNING: "true"
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mcp-adapter:
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.mcp-adapter
+    container_name: corpus-mcp-adapter
+    environment:
+      CORPUS_DEPLOYMENT_NAME: local-dev
+      CORPUS_ID: local-corpus
+      AUTH_TOKEN: dev-token
+      AUTH_HEADER_NAME: X-Api-Token
+      QUERY_SERVICE_URL: http://query-service:5000
+    ports:
+      - "8080:8080"
+    depends_on:
+      - query-service
+
+volumes:
+  pgdata:

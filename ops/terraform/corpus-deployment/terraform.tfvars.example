@@ -1,0 +1,44 @@
+# ==============================================================================
+# Corpus Deployment — Example Variables
+# ==============================================================================
+# Copy to terraform.tfvars and fill in real values.
+# Never commit terraform.tfvars — it contains secrets.
+# ==============================================================================
+
+corpus_id       = "shopify-ecosystem"
+deployment_name = "Shopify Ecosystem Intelligence"
+environment     = "staging"
+aws_region      = "us-east-1"
+
+# Networking — replace with your VPC and subnet IDs
+vpc_id            = "vpc-xxxxxxxx"
+alb_subnet_ids    = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
+service_subnet_ids = ["subnet-xxxxxxxx", "subnet-yyyyyyyy"]
+
+# RDS is disabled by default — use an external Postgres (Neon, Supabase, etc.)
+# to keep costs low when idle. Set create_rds = true and fill in rds_password
+# and rds_subnet_ids if you need RDS.
+create_rds       = false
+rds_instance_class = "db.t4g.micro"
+rds_password     = ""
+rds_subnet_ids   = []
+
+# External PostgreSQL connection string (Neon, Supabase, or self-managed)
+postgres_connection_string = "Host=your-postgres-host;Database=corpus;Username=corpus_admin;Password=..."
+
+# Authentication — generate with: openssl rand -hex 32
+auth_token = "replace-with-generated-token"
+
+# TLS — create an ACM certificate in us-east-1 for your domain
+certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Container image — build with ops/docker/Dockerfile and push to ECR
+container_image_repository = "123456789012.dkr.ecr.us-east-1.amazonaws.com/corpus-images"
+image_tag                  = "latest"
+
+# Operations
+log_retention_days     = 30
+allow_version_pinning  = true
+service_cpu            = 512
+service_memory         = 1024
+service_desired_count  = 1

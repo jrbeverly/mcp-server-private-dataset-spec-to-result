@@ -1,0 +1,32 @@
+# ==============================================================================
+# Processing Service — Dockerfile
+# ==============================================================================
+# Batch job container for dataset processing and publication.
+# Runs once per version; not a long-lived service.
+# ==============================================================================
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+COPY contracts/ServiceContract/src/ServiceContract.csproj contracts/ServiceContract/src/
+COPY contracts/ServiceConfiguration/src/ServiceConfiguration.csproj contracts/ServiceConfiguration/src/
+COPY processing/ProcessingService/src/ProcessingService.csproj processing/ProcessingService/src/
+COPY ingestion/IngestionService/src/IngestionService.csproj ingestion/IngestionService/src/
+
+RUN dotnet restore processing/ProcessingService/src/ProcessingService.csproj
+
+COPY . .
+RUN dotnet publish processing/ProcessingService/src/ProcessingService.csproj \
+    -c Release \
+    -o /app \
+    --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+
+RUN adduser --disabled-password --gecos "" appuser
+USER appuser
+
+COPY --from=build /app .
+
+ENTRYPOINT ["dotnet", "ProcessingService.dll"]
